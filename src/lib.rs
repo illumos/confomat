@@ -216,7 +216,7 @@ impl<'a> Context<'a> {
              * First, try an instance-specific path:
              */
             let mut r = self.confomat.dir.clone();
-            r.push("files/roles");
+            r.push("files");
             r.push(&self.role.name);
             r.push("instances");
             r.push(&i);
@@ -236,7 +236,7 @@ impl<'a> Context<'a> {
          * Otherwise, fall back to the role-level path:
          */
         let mut r = self.confomat.dir.clone();
-        r.push("files/roles");
+        r.push("files");
         r.push(&self.role.name);
         r.push(p);
 
@@ -287,7 +287,7 @@ impl<'a> Context<'a> {
              * First, try an instance-specific path:
              */
             let mut r = self.confomat.dir.clone();
-            r.push("files/roles");
+            r.push("files");
             r.push(&self.role.name);
             r.push("instances");
             r.push(i);
@@ -308,7 +308,7 @@ impl<'a> Context<'a> {
          * Otherwise, fall back to the role-level path:
          */
         let mut r = self.confomat.dir.clone();
-        r.push("files/roles");
+        r.push("files");
         r.push(&self.role.name);
         r.push(p);
 
