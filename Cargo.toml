@@ -1,0 +1,30 @@
+[package]
+name = "confomat"
+version = "0.1.0"
+authors = ["Joshua M. Clulow <josh@sysmgr.org>"]
+edition = "2018"
+license = "Apache-2.0"
+
+[features]
+default = ["vendored-openssl"]
+vendored-openssl = ['openssl/vendored']
+
+[dependencies]
+jmclib = { git = "https://github.com/jclulow/rust-jmclib.git" }
+slog = "2.5"
+slog-term = "2.5"
+atty = "0.2"
+getopts = "0.2"
+libc = "0.2"
+serde = { version = "1", features = [ "derive" ] }
+reqwest = { version = "0.10", features = [ "blocking" ] }
+digest = "0.8"
+md-5 = "0.8"
+sha-1 = "0.8"
+anyhow = "1"
+#
+# I believe it is necessary to pull this in here, so that we can demand the
+# static linking of the vendored OpenSSL.  We don't use it directly, but the
+# same version will then be used by reqwest.
+#
+openssl = { version = "0.10", optional = true }
