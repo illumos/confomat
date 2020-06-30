@@ -146,7 +146,7 @@ impl Confomat {
                 bail!("role \"{}\" requires an instance", rolename);
             }
 
-            let log = if let Some(i) = &instance {
+            let log0 = if let Some(i) = &instance {
                 log.new(o!("role" => rolename,
                     "instance" => i.to_string()))
             } else {
@@ -155,15 +155,19 @@ impl Confomat {
 
             let ctx = Context {
                 confomat: self,
-                log,
+                log: log0,
                 role,
                 instance,
             };
 
             if let Err(e) = (role.func)(&ctx) {
                 bail!("role \"{}\" failed: {}", role.name, e);
+            } else {
+                info!(log, "PROCESSING ROLE {} COMPLETE", role.name);
             }
         }
+
+        info!(log, "PROCESSING COMPLETE");
 
         Ok(())
     }

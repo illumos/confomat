@@ -135,6 +135,7 @@ pub fn perms<P: AsRef<Path>>(log: &Logger, p: P, owner: &str, group: &str,
     -> Result<bool>
 {
     let p = p.as_ref();
+    let log = log.new(slog::o!("path" => p.display().to_string()));
     let mut did_work = false;
 
     let fi = if let Some(fi) = check(p)? {
