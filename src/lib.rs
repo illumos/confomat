@@ -608,8 +608,7 @@ impl<'a> Context<'a> {
             .arg("-H")
             .output()?;
         if !out.status.success() {
-            bail!("beadm list failed: {}",
-                String::from_utf8_lossy(&out.stderr).trim());
+            bail!("beadm list failed: {}", out.info());
         }
         let val = String::from_utf8(out.stdout)?;
         let lines: Vec<&str> = val.lines().collect();
@@ -653,8 +652,7 @@ impl<'a> Context<'a> {
             .arg("-F").arg("tsv")
             .output()?;
         if !out.status.success() {
-            bail!("pkg publisher failed: {}",
-                String::from_utf8_lossy(&out.stderr).trim());
+            bail!("pkg publisher failed: {}", out.info());
         }
         let val = String::from_utf8(out.stdout)?;
         let lines: Vec<&str> = val.lines().collect();
@@ -709,8 +707,7 @@ impl<'a> Context<'a> {
             .arg(fmri)
             .output()?;
         if !out.status.success() {
-            bail!("svcprop failed: {}",
-                String::from_utf8_lossy(&out.stderr).trim());
+            bail!("svcprop failed: {}", out.info());
         }
         let val = String::from_utf8(out.stdout)?;
         let lines: Vec<_> = val.lines().collect();
@@ -841,7 +838,7 @@ fn instance_state(fmri: &str) -> Result<(SMFState, Option<SMFState>)> {
         .arg(fmri)
         .output()?;
     if !out.status.success() {
-        bail!("svcs failed: {}", String::from_utf8_lossy(&out.stderr).trim());
+        bail!("svcs failed: {}", out.info());
     }
     let val = String::from_utf8(out.stdout)?;
     let lines: Vec<_> = val.lines().collect();
