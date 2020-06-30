@@ -69,7 +69,7 @@ pub enum OS {
 pub enum HomeDir {
     ZFS(String), /* Create home directories as children of this dataset */
     NFS, /* Home directories are mounted via autofs */
-    // Bare, /* Create home directories with mkdir(2) and no special handling */
+    Bare, /* Create home directories with mkdir(2) and no special handling */
 }
 
 pub struct Context<'a> {
@@ -330,20 +330,49 @@ impl<'a> Context<'a> {
         let log = &self.log;
 
         /*
+         * First, determine whether the automounter is online or disabled.
+         */
+        let autofs = match
+            instance_state("svc:/system/filesystem/autofs:default")?
+        {
+            (SMFState::Offline, None) => false,
+            (SMFState::Online, None) => true,
+            x => bail!("autofs not in stable state: {:?}", x),
+        };
+
+        if autofs {
+            /*
+             * Make sure the automounter is up-to-date with any changes to the
+             * map files.
+             */
+            self.run(&["/usr/sbin/automount"])?;
+        }
+
+        /*
          * Determine whether /home is a ZFS dataset, or automounted.
          */
         let mnttab = self.read_lines("/etc/mnttab")?.expect("mnttab lines");
         let x: Vec<Vec<_>> = mnttab.iter()
             .map(|m| { m.split('\t').collect() })
             .collect();
-        let h = x.iter().find(|x| x[1] == "/home").expect("found /home");
-        debug!(log, "/home mnttab entry: {:?}", h);
-        let homedir = if h[2] == "zfs" {
-            HomeDir::ZFS(h[0].to_string())
-        } else if h[2] == "autofs" {
-            HomeDir::NFS
+        let homedir = if let Some(h) = x.iter().find(|x| x[1] == "/home") {
+            debug!(log, "/home mnttab entry: {:?}", h);
+            if h[2] == "zfs" {
+                HomeDir::ZFS(h[0].to_string())
+            } else if h[2] == "autofs" {
+                if !autofs {
+                    bail!("autofs disabled, but autofs /home detected");
+                }
+                HomeDir::NFS
+            } else {
+                bail!("unknown /home type: {:?}", h);
+            }
         } else {
-            bail!("unknown /home type: {:?}", h);
+            /*
+             * If neither a ZFS dataset nor the automounter are anchored at
+             * /home, treat this is a bare directory.
+             */
+            HomeDir::Bare
         };
         info!(log, "home directory type: {:?}", homedir);
         Ok(homedir)
