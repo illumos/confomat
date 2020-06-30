@@ -5,7 +5,7 @@
 use jmclib::dirs::rootdir;
 
 use std::process::exit;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{PathBuf, Path};
 use std::fmt::Debug;
 use std::collections::HashMap;
@@ -715,6 +715,157 @@ impl<'a> Context<'a> {
             bail!("unexpected output for {}: {:?}", fmri, lines);
         }
         Ok(lines[0].trim().to_string())
+    }
+
+    pub fn ensure_cron(&self, user: &str, name: &str, script: &str)
+        -> Result<()>
+    {
+        info!(self.log, "cron script \"{}\" for user \"{}\"", script, user);
+
+        /*
+         * Read the existing crontab for this user:
+         */
+        let out = std::process::Command::new("/usr/bin/crontab")
+            .env_clear()
+            .arg("-l").arg(user)
+            .output()?;
+        if !out.status.success() {
+            bail!("crontab -l {} failed: {}", name, out.info());
+        }
+        let val = String::from_utf8(out.stdout)?;
+        let lines: Vec<String> = val.lines().map(|s| s.to_string()).collect();
+        let mut new_lines = lines.clone();
+
+        info!(self.log, "orig lines: {:#?}", lines);
+
+        /*
+         * First, we want to look for and transform any legacy "Chef Name"
+         * entries.
+         */
+        new_lines = new_lines.iter_mut().map(|l| {
+            if l.starts_with("# Chef Name: ") {
+                l.replace("# Chef Name: ", "# confomat: ")
+            } else {
+                l.to_string()
+            }
+        }).collect();
+
+        /*
+         * Next, look to see if there is a job with the specified name:
+         */
+        let mut name_at: Option<usize> = None;
+        let mut script_at: Option<usize> = None;
+        for (i, l) in new_lines.iter().enumerate() {
+            if l.starts_with("# confomat: ") {
+                if &l["# confomat: ".len()..] == name {
+                    if name_at.is_none() {
+                        name_at = Some(i);
+                    } else {
+                        bail!("line marker appears twice in crontab");
+                    }
+                }
+            } else if l.trim() == script.trim() {
+                if script_at.is_none() {
+                    script_at = Some(i);
+                } else {
+                    bail!("script appears twice in crontab already");
+                }
+            }
+        }
+
+        match (name_at, script_at) {
+            (Some(ni), Some(si)) => {
+                if si != ni + 1 {
+                    bail!("the script does not directly follow the marker?!");
+                }
+            }
+            (None, Some(si)) => {
+                /*
+                 * The script exists already, but the name marker was missing.
+                 * Add the marker in.
+                 */
+                new_lines.insert(si, format!("# confomat: {}", name));
+            }
+            (Some(ni), None) => {
+                if ni + 1 < new_lines.len() {
+                    /*
+                     * The marker exists, but the script does not.  Comment out
+                     * whatever is on the line directly after the marker.
+                     */
+                    let nl = format!("# confomat preserved: {}",
+                        new_lines[ni + 1]);
+                    new_lines[ni + 1] = nl;
+                }
+
+                /*
+                 * Insert the script right after the marker line.
+                 */
+                new_lines.insert(ni + 1, script.trim().to_string());
+            }
+            (None, None) => {
+                /*
+                 * Neither the marker nor the script appear in the file.
+                 * Just append.
+                 */
+                new_lines.push(format!("# confomat: {}", name));
+                new_lines.push(script.trim().to_string());
+            }
+        }
+
+        if lines == new_lines {
+            info!(self.log, "no change to crontab");
+            return Ok(());
+        }
+
+        info!(self.log, "installing new lines: {:#?}", new_lines);
+        let mut ct = String::new();
+        for l in new_lines.iter() {
+            ct.push_str(l);
+            ct.push('\n');
+        }
+
+        /*
+         * Run crontab as the target user to install the crontab.  Note that
+         * this may fail, e.g., if the syntax is not valid or the disk is full.
+         *
+         * We use su to run the program as the target user because there is no
+         * available crontab(1) "install a whole crontab" mode that targets an
+         * arbitrary user.
+         */
+        let mut cmd = std::process::Command::new("/usr/bin/su")
+            .env_clear()
+            .arg("-").arg(user)
+            .arg("-c").arg("/usr/bin/crontab")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
+
+        let stdin = cmd.stdin.as_mut().expect("crontab stdin");
+        let ok = if let Err(e) = stdin.write_all(ct.as_bytes()) {
+            error!(self.log, "failed to write to crontab stdin: {}", e);
+            false
+        } else {
+            true
+        };
+
+        if !ok {
+            /*
+             * It does not appear that dropping the child process tracking
+             * object will necessarily terminate the child.  Make sure we handle
+             * that ourselves:
+             */
+            error!(self.log, "killing crontab child");
+            cmd.kill()?;
+        }
+
+        let out = cmd.wait_with_output()?;
+        if !out.status.success() {
+            bail!("crontab -l {} failed: {}", name, out.info());
+        }
+
+        info!(self.log, "crontab ok");
+        Ok(())
     }
 }
 
