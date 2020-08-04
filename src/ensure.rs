@@ -312,10 +312,15 @@ pub fn file<P1: AsRef<Path>, P2: AsRef<Path>>(log: &Logger, src: P1, dst: P2,
                     dst.display());
                 false
             }
+            Create::IfMissing if fi.filetype == FileType::Link => {
+                warn!(log, "symlink {} exists, skipping population",
+                    dst.display());
+                false
+            }
             Create::IfMissing => {
                 /*
-                 * Avoid clobbering an unexpected symlink when we have been
-                 * asked to preserve in the face of modifications.
+                 * Avoid clobbering an unexpected entry when we have been asked
+                 * to preserve in the face of modifications.
                  */
                 bail!("{} should be a file, but is a {:?}",
                     dst.display(), fi.filetype);
