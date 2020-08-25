@@ -558,6 +558,15 @@ impl<'a> Context<'a> {
         ensure::file(&self.log, src, dst, owner, group, perms, create)
     }
 
+    pub fn ensure_file_str<S: AsRef<str>, D: AsRef<Path>>(&self,
+        contents: S, dst: D, owner: &str, group: &str, perms: u32,
+        create: Create)
+        -> Result<bool>
+    {
+        ensure::file_str(&self.log, contents.as_ref(), dst, owner, group,
+            perms, create)
+    }
+
     pub fn ensure_perms<P: AsRef<Path>>(&self, path: P,
         owner: &str, group: &str, perms: u32)
         -> Result<bool>

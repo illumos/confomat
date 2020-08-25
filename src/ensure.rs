@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::fs::{DirBuilder, File};
 use std::os::unix::fs::DirBuilderExt;
 use std::ffi::CString;
-use std::io::{Read, BufRead, BufReader, BufWriter};
+use std::io::{Read, BufRead, Write, BufReader, BufWriter};
 use std::process::{Command, Stdio};
 use digest::Digest;
 use slog::{Logger, info, warn, error};
@@ -235,6 +235,20 @@ fn open<P: AsRef<Path>>(p: P) -> Result<File> {
     }
 }
 
+fn comparestr<P: AsRef<Path>>(src: &str, dst: P) -> Result<bool> {
+    let dstf = open(dst)?;
+    let mut dstr = BufReader::new(dstf);
+
+    /*
+     * Assume that if the file can be passed in as a string slice, it can also
+     * be loaded into memory fully for comparison.
+     */
+    let mut dstbuf = Vec::<u8>::new();
+    dstr.read_to_end(&mut dstbuf)?;
+
+    Ok(dstbuf == src.as_bytes())
+}
+
 fn compare<P1: AsRef<Path>, P2: AsRef<Path>>(src: P1, dst: P2) -> Result<bool> {
     let srcf = open(src)?;
     let dstf = open(dst)?;
@@ -293,6 +307,87 @@ pub fn removed<P: AsRef<Path>>(log: &Logger, dst: P) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn file_str<P: AsRef<Path>>(log: &Logger, contents: &str, dst: P,
+    owner: &str, group: &str, mode: u32, create: Create) -> Result<bool>
+{
+    let dst = dst.as_ref();
+    let mut did_work = false;
+
+    let do_copy = if let Some(fi) = check(dst)? {
+        /*
+         * The path exists already.
+         */
+        match create {
+            Create::IfMissing if fi.filetype == FileType::File => {
+                info!(log, "file {} exists, skipping population",
+                    dst.display());
+                false
+            }
+            Create::IfMissing if fi.filetype == FileType::Link => {
+                warn!(log, "symlink {} exists, skipping population",
+                    dst.display());
+                false
+            }
+            Create::IfMissing => {
+                /*
+                 * Avoid clobbering an unexpected entry when we have been asked
+                 * to preserve in the face of modifications.
+                 */
+                bail!("{} should be a file, but is a {:?}",
+                    dst.display(), fi.filetype);
+            }
+            Create::Always if fi.filetype == FileType::File => {
+                /*
+                 * Check the contents of the file to make sure it matches
+                 * what we expect.
+                 */
+                if comparestr(contents, dst)? {
+                    info!(log, "file {} exists, with correct contents",
+                        dst.display());
+                    false
+                } else {
+                    warn!(log, "file {} exists, with wrong contents, unlinking",
+                        dst.display());
+                    std::fs::remove_file(dst)?;
+                    true
+                }
+            }
+            Create::Always => {
+                /*
+                 * We found a file type we don't expect.  Try to unlink it
+                 * anyway.
+                 */
+                warn!(log, "file {} exists, of type {:?}, unlinking",
+                    dst.display(), fi.filetype);
+                std::fs::remove_file(dst)?;
+                true
+            }
+        }
+    } else {
+        info!(log, "file {} does not exist", dst.display());
+        true
+    };
+
+    if do_copy {
+        did_work = true;
+        info!(log, "writing {} ...", dst.display());
+
+        let mut f = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&dst)?;
+        f.write_all(contents.as_bytes())?;
+        f.flush()?;
+    }
+
+    if perms(log, dst, owner, group, mode)? {
+        did_work = true;
+    }
+
+    info!(log, "ok!");
+    Ok(did_work)
 }
 
 pub fn file<P1: AsRef<Path>, P2: AsRef<Path>>(log: &Logger, src: P1, dst: P2,
