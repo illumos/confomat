@@ -14,8 +14,25 @@ use slog::Logger;
 
 use anyhow::{Result, bail};
 
-pub mod illumos;
+pub mod os;
+pub mod unix;
 pub mod digitalocean;
+
+/*
+ * For backwards compatibility with prior versions of the code:
+ */
+pub mod illumos {
+    pub use super::unix::{
+        get_group_by_id,
+        get_passwd_by_id,
+        get_passwd_by_name,
+        get_group_by_name,
+    };
+    #[cfg(target_os = "illumos")]
+    pub use super::os::{
+        get_user_attr_by_name,
+    };
+}
 
 mod common;
 use common::*;
@@ -89,7 +106,9 @@ pub struct Confomat {
     os: OS,
     dir: PathBuf,
     nodename: String,
+    #[cfg(target_os = "illumos")]
     zoneid: i32,
+    #[cfg(target_os = "illumos")]
     zonename: String,
     log: Logger,
     roles: HashMap<String, Role>,
@@ -378,10 +397,17 @@ impl<'a> Context<'a> {
         Ok(homedir)
     }
 
+    #[cfg(target_os = "illumos")]
     pub fn is_gz(&self) -> bool {
         self.confomat.zoneid == 0
     }
 
+    #[cfg(target_os = "linux")]
+    pub fn is_gz(&self) -> bool {
+        true
+    }
+
+    #[cfg(target_os = "illumos")]
     pub fn data_dataset(&self) -> Result<String> {
         match self.confomat.os {
             OS::SmartOS => if self.is_gz() {
@@ -405,6 +431,11 @@ impl<'a> Context<'a> {
                 Ok(format!("rpool/data/{}/data", self.confomat.zonename))
             }
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn data_dataset(&self) -> Result<String> {
+        bail!("do not know where to put data on Linux");
     }
 
     pub fn check<P: AsRef<Path>>(&self, path: P) -> Result<Option<FileInfo>> {
@@ -1080,16 +1111,20 @@ pub fn start() -> Result<Confomat> {
         log,
         dir,
         os,
-        nodename: illumos::nodename(),
-        zoneid: illumos::zoneid(),
-        zonename: illumos::zonename(),
+        nodename: unix::nodename(),
+        #[cfg(target_os = "illumos")]
+        zoneid: os::zoneid(),
+        #[cfg(target_os = "illumos")]
+        zonename: os::zonename(),
         freeargs: p.free,
         roles: HashMap::new(),
     };
 
     info!(c.log, "operating system: {:?}", c.os);
     info!(c.log, "nodename: {}", c.nodename);
+    #[cfg(target_os = "illumos")]
     info!(c.log, "zone ID: {}", c.zoneid);
+    #[cfg(target_os = "illumos")]
     info!(c.log, "zone name: {}", c.zonename);
 
     Ok(c)

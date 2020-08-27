@@ -11,6 +11,7 @@ use std::process::{Command, Stdio};
 use digest::Digest;
 use slog::{Logger, info, warn, error};
 use anyhow::{Result, bail, anyhow};
+use super::os;
 
 #[allow(dead_code)]
 #[derive(Debug, PartialEq)]
@@ -56,7 +57,7 @@ pub fn check<P: AsRef<Path>>(p: P) -> Result<Option<FileInfo>> {
     }));
     let (r, e, st) = unsafe {
         let r = libc::lstat(cname.as_ptr(), st);
-        let e = *libc::___errno();
+        let e = os::errno();
         (r, e, Box::from_raw(st))
     };
     if r != 0 {
@@ -85,13 +86,13 @@ pub fn check<P: AsRef<Path>>(p: P) -> Result<Option<FileInfo>> {
         None
     };
 
-    let owner = if let Some(p) = super::illumos::get_passwd_by_id(st.st_uid)? {
+    let owner = if let Some(p) = super::unix::get_passwd_by_id(st.st_uid)? {
         Id::Name(p.name.unwrap())
     } else {
         Id::Id(st.st_uid)
     };
 
-    let group = if let Some(g) = super::illumos::get_group_by_id(st.st_gid)? {
+    let group = if let Some(g) = super::unix::get_group_by_id(st.st_gid)? {
         Id::Name(g.name.unwrap())
     } else {
         Id::Id(st.st_gid)
@@ -109,8 +110,8 @@ pub fn check<P: AsRef<Path>>(p: P) -> Result<Option<FileInfo>> {
 }
 
 pub fn chown<P: AsRef<Path>>(path: P, owner: &str, group: &str) -> Result<()> {
-    let (o, g) = match (super::illumos::get_passwd_by_name(owner)?,
-        super::illumos::get_group_by_name(group)?)
+    let (o, g) = match (super::unix::get_passwd_by_name(owner)?,
+        super::unix::get_group_by_name(group)?)
     {
         (Some(o), Some(g)) => (o.uid, g.gid),
         _ => bail!("{}:{} not real user/group", owner, group),
@@ -119,7 +120,7 @@ pub fn chown<P: AsRef<Path>>(path: P, owner: &str, group: &str) -> Result<()> {
     let cname = CString::new(path.as_ref().to_str().unwrap().to_string())?;
     let (r, e) = unsafe {
         let r = libc::lchown(cname.as_ptr(), o, g);
-        let e = *libc::___errno();
+        let e = os::errno();
         (r, e)
     };
     if r != 0 {
@@ -155,7 +156,7 @@ pub fn perms<P: AsRef<Path>>(log: &Logger, p: P, owner: &str, group: &str,
         let cname = CString::new(p.to_str().unwrap().to_string())?;
         let (r, e) = unsafe {
             let r = libc::chmod(cname.as_ptr(), perms);
-            let e = *libc::___errno();
+            let e = os::errno();
             (r, e)
         };
         if r != 0 {
