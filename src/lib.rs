@@ -609,6 +609,34 @@ impl<'a> Context<'a> {
         ensure::run(&self.log, args)
     }
 
+    pub fn ensure_disabled(&self, fmri: &str) -> Result<()> {
+        loop {
+            match instance_state(fmri)? {
+                (SMFState::Disabled, None) => {
+                    info!(self.log, "smf instance {}: disabled!", fmri);
+                    return Ok(());
+                }
+                (SMFState::Maintenance, None) => {
+                    info!(self.log, "smf instance {}: in maintenance, \
+                        disabling and clearing...", fmri);
+                    self.run(&["/usr/sbin/svcadm", "disable", fmri])?;
+                    self.run(&["/usr/sbin/svcadm", "clear", fmri])?;
+                }
+                (SMFState::Offline, None) => {
+                    info!(self.log, "smf instance {}: offline, \
+                        disabling...", fmri);
+                    self.run(&["/usr/sbin/svcadm", "disable", fmri])?;
+                }
+                x => {
+                    warn!(self.log, "smf instance {}: unexpected state {:?}",
+                        fmri, x);
+                }
+            }
+
+            sleep(1);
+        }
+    }
+
     pub fn ensure_online(&self, fmri: &str, need_restart: bool)
         -> Result<()>
     {
