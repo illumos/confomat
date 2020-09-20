@@ -354,7 +354,7 @@ impl<'a> Context<'a> {
         let autofs = match
             instance_state("svc:/system/filesystem/autofs:default")?
         {
-            (SMFState::Offline, None) => false,
+            (SMFState::Disabled, None) => false,
             (SMFState::Online, None) => true,
             x => bail!("autofs not in stable state: {:?}", x),
         };
