@@ -622,9 +622,8 @@ impl<'a> Context<'a> {
                     self.run(&["/usr/sbin/svcadm", "disable", fmri])?;
                     self.run(&["/usr/sbin/svcadm", "clear", fmri])?;
                 }
-                (SMFState::Offline, None) => {
-                    info!(self.log, "smf instance {}: offline, \
-                        disabling...", fmri);
+                (SMFState::Offline, None) | (SMFState::Online, None) => {
+                    info!(self.log, "smf instance {}: disabling...", fmri);
                     self.run(&["/usr/sbin/svcadm", "disable", fmri])?;
                 }
                 x => {
