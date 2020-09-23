@@ -208,6 +208,29 @@ impl<'a> Context<'a> {
     pub fn config<C>(&self) -> Result<C>
         where for<'de> C: serde::Deserialize<'de>
     {
+        let log = &self.log;
+
+        if let Some(i) = &self.instance {
+            /*
+             * First, try an instance-specific path:
+             */
+            let mut r = self.confomat.dir.clone();
+            r.push("config");
+            r.push(&self.role.name);
+            r.push(&format!("{}.toml", i));
+
+            debug!(log, "try instance-level config: {}", r.display());
+
+            match jmclib::toml::read_file(&r) {
+                Ok(Some(c)) => return Ok(c),
+                Ok(None) => (),
+                Err(e) => bail!("reading config {}: {}", r.display(), e),
+            }
+        }
+
+        /*
+         * Otherwise, use the instanceless path:
+         */
         let mut r = self.confomat.dir.clone();
         r.push("config");
         r.push(&format!("{}.toml", self.role.name));
