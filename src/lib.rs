@@ -80,6 +80,7 @@ pub enum OS {
     OmniOS,
     OpenIndiana,
     SmartOS,
+    Helios,
 }
 
 #[derive(Debug, PartialEq)]
@@ -443,7 +444,7 @@ impl<'a> Context<'a> {
                  */
                 Ok(format!("zones/{}/data", self.confomat.zonename))
             }
-            OS::OmniOS | OS::OpenIndiana => if self.is_gz() {
+            OS::OmniOS | OS::OpenIndiana | OS::Helios => if self.is_gz() {
                 Ok("rpool/data".to_string())
             } else {
                 /*
@@ -1036,6 +1037,8 @@ fn which_os(log: &Logger) -> Result<OS> {
                 return Ok(OS::SmartOS);
             } else if data[0].contains("OpenIndiana Hipster") {
                 return Ok(OS::OpenIndiana);
+            } else if data[0].contains("Helios") {
+                return Ok(OS::Helios);
             }
         }
         error!(log, "unknown OS from /etc/release: {:?}", data);
