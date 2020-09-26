@@ -8,6 +8,7 @@ use std::os::unix::fs::DirBuilderExt;
 use std::ffi::CString;
 use std::io::{Read, BufRead, Write, BufReader, BufWriter};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use digest::Digest;
 use slog::{Logger, info, warn, error};
 use anyhow::{Result, bail, anyhow};
@@ -551,13 +552,18 @@ pub fn hash_file<P: AsRef<Path>>(p: P, hashtype: &HashType) -> Result<String> {
 }
 
 fn sleep(s: u64) {
-    std::thread::sleep(std::time::Duration::from_secs(s));
+    std::thread::sleep(Duration::from_secs(s));
 }
 
 pub fn download_file<P: AsRef<Path>>(log: &Logger, url: &str, p: P, hash: &str,
     hashtype: HashType) -> Result<()>
 {
     let p = p.as_ref();
+
+    let client = reqwest::blocking::ClientBuilder::new()
+        .user_agent("confomat")
+        .connect_timeout(Duration::from_secs(15))
+        .build()?;
 
     loop {
         /*
@@ -588,7 +594,9 @@ pub fn download_file<P: AsRef<Path>>(log: &Logger, url: &str, p: P, hash: &str,
 
         info!(log, "file {} does not exist; downloading from {}", p.display(),
             url);
-        let mut res = reqwest::blocking::get(url)?;
+
+        let mut res = client.get(url).send()?;
+
         if !res.status().is_success() {
             warn!(log, "HTTP {:?}; retrying...", res.status());
             sleep(5);
