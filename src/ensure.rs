@@ -592,6 +592,7 @@ pub fn download_file<P: AsRef<Path>>(log: &Logger, url: &str, p: P, hash: &str,
         if !res.status().is_success() {
             warn!(log, "HTTP {:?}; retrying...", res.status());
             sleep(5);
+            continue;
         }
 
         let f = std::fs::OpenOptions::new()
