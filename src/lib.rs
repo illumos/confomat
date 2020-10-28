@@ -1026,6 +1026,8 @@ fn which_os(log: &Logger) -> Result<OS> {
         if let Some(id) = kv.iter().find(|kve| kve[0] == "ID") {
             if id[1] == "omnios" {
                 return Ok(OS::OmniOS);
+            } else if id[1] == "helios" {
+                return Ok(OS::Helios);
             }
         }
 
