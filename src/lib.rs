@@ -1062,7 +1062,7 @@ fn run_pkgsrc(log: &Logger, cmd: &[&str]) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BootEnvironment {
     pub name: String,
     pub uuid: String,
@@ -1074,7 +1074,7 @@ pub struct BootEnvironment {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PkgPublisher {
     pub name: String,
     pub sticky: bool,
