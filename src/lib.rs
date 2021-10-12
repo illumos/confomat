@@ -81,6 +81,7 @@ pub enum OS {
     OpenIndiana,
     SmartOS,
     Helios,
+    Alpine,
 }
 
 #[derive(Debug, PartialEq)]
@@ -369,6 +370,7 @@ impl<'a> Context<'a> {
         }
     }
 
+    #[cfg(target_os = "illumos")]
     pub fn homedir(&self) -> Result<HomeDir> {
         let log = &self.log;
 
@@ -421,6 +423,11 @@ impl<'a> Context<'a> {
         Ok(homedir)
     }
 
+    #[cfg(target_os = "linux")]
+    pub fn homedir(&self) -> Result<HomeDir> {
+        Ok(HomeDir::Bare)
+    }
+
     #[cfg(target_os = "illumos")]
     pub fn is_gz(&self) -> bool {
         self.confomat.zoneid == 0
@@ -433,7 +440,7 @@ impl<'a> Context<'a> {
 
     #[cfg(target_os = "illumos")]
     pub fn data_dataset(&self) -> Result<String> {
-        match self.confomat.os {
+        match &self.confomat.os {
             OS::SmartOS => if self.is_gz() {
                 bail!("do not know where to put data in SmartOS GZ");
             } else {
@@ -454,6 +461,7 @@ impl<'a> Context<'a> {
                  */
                 Ok(format!("rpool/data/{}/data", self.confomat.zonename))
             }
+            other => bail!("do not know where to put data on {:?}", other),
         }
     }
 
@@ -1028,6 +1036,8 @@ fn which_os(log: &Logger) -> Result<OS> {
                 return Ok(OS::OmniOS);
             } else if id[1] == "helios" {
                 return Ok(OS::Helios);
+            } else if id[1] == "alpine" {
+                return Ok(OS::Alpine);
             }
         }
 
