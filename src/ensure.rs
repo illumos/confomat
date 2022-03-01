@@ -556,9 +556,10 @@ fn sleep(s: u64) {
 }
 
 pub fn download_file<P: AsRef<Path>>(log: &Logger, url: &str, p: P, hash: &str,
-    hashtype: HashType) -> Result<()>
+    hashtype: HashType) -> Result<bool>
 {
     let p = p.as_ref();
+    let mut did_work = false;
 
     let client = reqwest::blocking::ClientBuilder::new()
         .user_agent("confomat")
@@ -592,6 +593,7 @@ pub fn download_file<P: AsRef<Path>>(log: &Logger, url: &str, p: P, hash: &str,
             }
         }
 
+        did_work = true;
         info!(log, "file {} does not exist; downloading from {}", p.display(),
             url);
 
@@ -622,7 +624,7 @@ pub fn download_file<P: AsRef<Path>>(log: &Logger, url: &str, p: P, hash: &str,
         info!(log, "downloaded {} bytes", sz);
     }
 
-    Ok(())
+    Ok(did_work)
 }
 
 fn spawn_reader<T>(log: &Logger, name: &str, stream: Option<T>)

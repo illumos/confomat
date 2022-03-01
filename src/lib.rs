@@ -594,7 +594,7 @@ impl<'a> Context<'a> {
     }
 
     pub fn ensure_download<P: AsRef<Path>>(&self, url: &str, path: P,
-        hash: &str, hashtype: HashType) -> Result<()>
+        hash: &str, hashtype: HashType) -> Result<bool>
     {
         ensure::download_file(&self.log, url, path, hash, hashtype)
     }
