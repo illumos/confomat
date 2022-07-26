@@ -1,7 +1,6 @@
 [package]
 name = "confomat"
 version = "0.1.0"
-authors = ["Joshua M. Clulow <josh@sysmgr.org>"]
 edition = "2018"
 license = "Apache-2.0"
 

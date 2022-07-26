@@ -2,13 +2,13 @@
  * Copyright 2020 Oxide Computer Company
  */
 
+use slog::{warn, Logger};
 use std::net::Ipv4Addr;
 use std::time::Duration;
-use slog::{Logger, warn};
 
 use reqwest::blocking::ClientBuilder;
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 
 pub struct IP {
     pub address: Ipv4Addr,
@@ -20,13 +20,9 @@ fn sleep(ms: u64) {
 }
 
 pub fn private_ip(log: &Logger) -> Result<IP> {
-    let c = ClientBuilder::new()
-        .timeout(Duration::from_secs(15))
-        .build()?;
+    let c = ClientBuilder::new().timeout(Duration::from_secs(15)).build()?;
 
-    let url = |p: &str| {
-        format!("http://169.254.169.254/metadata/v1/{}", p)
-    };
+    let url = |p: &str| format!("http://169.254.169.254/metadata/v1/{}", p);
 
     let fetch = |p: &str| -> Result<Ipv4Addr> {
         loop {

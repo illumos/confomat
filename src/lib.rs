@@ -4,33 +4,29 @@
 
 use jmclib::dirs::rootdir;
 
-use std::process::exit;
-use std::io::{Read, Write};
-use std::path::{PathBuf, Path};
-use std::fmt::Debug;
 use std::collections::HashMap;
+use std::fmt::Debug;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::exit;
 
 use slog::Logger;
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 
+pub mod digitalocean;
 pub mod os;
 pub mod unix;
-pub mod digitalocean;
 
 /*
  * For backwards compatibility with prior versions of the code:
  */
 pub mod illumos {
-    pub use super::unix::{
-        get_group_by_id,
-        get_passwd_by_id,
-        get_passwd_by_name,
-        get_group_by_name,
-    };
     #[cfg(target_os = "illumos")]
-    pub use super::os::{
-        get_user_attr_by_name,
+    pub use super::os::get_user_attr_by_name;
+    pub use super::unix::{
+        get_group_by_id, get_group_by_name, get_passwd_by_id,
+        get_passwd_by_name,
     };
 }
 
@@ -38,7 +34,7 @@ mod common;
 use common::*;
 
 mod ensure;
-pub use ensure::{Create, FileType, FileInfo, HashType};
+pub use ensure::{Create, FileInfo, FileType, HashType};
 
 /*
  * Constants for commonly used User and Group names:
@@ -87,7 +83,7 @@ pub enum OS {
 #[derive(Debug, PartialEq)]
 pub enum HomeDir {
     ZFS(String), /* Create home directories as children of this dataset */
-    NFS, /* Home directories are mounted via autofs */
+    NFS,         /* Home directories are mounted via autofs */
     Bare, /* Create home directories with mkdir(2) and no special handling */
 }
 
@@ -128,11 +124,14 @@ impl Confomat {
             InstancePosture::Required => true,
         };
 
-        self.roles.insert(provider.name.to_string(), Role {
-            name: provider.name.to_string(),
-            func: provider.func,
-            allow_instance,
-        });
+        self.roles.insert(
+            provider.name.to_string(),
+            Role {
+                name: provider.name.to_string(),
+                func: provider.func,
+                allow_instance,
+            },
+        );
 
         Ok(())
     }
@@ -174,12 +173,7 @@ impl Confomat {
                 log.new(o!("role" => rolename))
             };
 
-            let ctx = Context {
-                confomat: self,
-                log: log0,
-                role,
-                instance,
-            };
+            let ctx = Context { confomat: self, log: log0, role, instance };
 
             if let Err(e) = (role.func)(&ctx) {
                 bail!("role \"{}\" failed: {}", role.name, e);
@@ -208,7 +202,8 @@ impl<'a> Context<'a> {
     }
 
     pub fn config<C>(&self) -> Result<C>
-        where for<'de> C: serde::Deserialize<'de>
+    where
+        for<'de> C: serde::Deserialize<'de>,
     {
         let log = &self.log;
 
@@ -245,17 +240,21 @@ impl<'a> Context<'a> {
     }
 
     pub fn file<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
-        match self.file_maybe(path.as_ref())?  {
+        match self.file_maybe(path.as_ref())? {
             Some(r) => Ok(r),
-            None => bail!("role file ({:?}, {}, {}) does not exist",
-                &self.instance, &self.role.name,
-                path.as_ref().display()),
+            None => bail!(
+                "role file ({:?}, {}, {}) does not exist",
+                &self.instance,
+                &self.role.name,
+                path.as_ref().display()
+            ),
         }
     }
 
-    pub fn file_maybe<P: AsRef<Path>>(&self, path: P)
-        -> Result<Option<PathBuf>>
-    {
+    pub fn file_maybe<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<Option<PathBuf>> {
         let log = &self.log;
         let p = path.as_ref();
 
@@ -273,9 +272,14 @@ impl<'a> Context<'a> {
             debug!(log, "check instance-level path: {}", r.display());
 
             match ensure::check(&r)? {
-                Some(fi) if fi.filetype == FileType::File => return Ok(Some(r)),
-                Some(fi) => bail!("path {} is a {:?}, not a file",
-                    r.display(), fi.filetype),
+                Some(fi) if fi.filetype == FileType::File => {
+                    return Ok(Some(r))
+                }
+                Some(fi) => bail!(
+                    "path {} is a {:?}, not a file",
+                    r.display(),
+                    fi.filetype
+                ),
                 None => (),
             };
         }
@@ -292,24 +296,30 @@ impl<'a> Context<'a> {
 
         match ensure::check(&r)? {
             Some(fi) if fi.filetype == FileType::File => Ok(Some(r)),
-            Some(fi) => bail!("path {} is a {:?}, not a file",
-                r.display(), fi.filetype),
+            Some(fi) => {
+                bail!("path {} is a {:?}, not a file", r.display(), fi.filetype)
+            }
             None => Ok(None),
         }
     }
 
     pub fn files<P: AsRef<Path>>(&self, path: P) -> Result<Vec<PathBuf>> {
-        match self.files_maybe(path.as_ref())?  {
+        match self.files_maybe(path.as_ref())? {
             Some(r) => Ok(r),
-            None => bail!("role files directory ({:?}, {}, {}) \
-                does not exist", &self.instance, &self.role.name,
-                path.as_ref().display()),
+            None => bail!(
+                "role files directory ({:?}, {}, {}) \
+                does not exist",
+                &self.instance,
+                &self.role.name,
+                path.as_ref().display()
+            ),
         }
     }
 
-    pub fn files_maybe<P: AsRef<Path>>(&self, path: P)
-        -> Result<Option<Vec<PathBuf>>>
-    {
+    pub fn files_maybe<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<Option<Vec<PathBuf>>> {
         let log = &self.log;
         let p = path.as_ref();
 
@@ -320,9 +330,12 @@ impl<'a> Context<'a> {
                 let path = ent.path();
 
                 if !ent.file_type()?.is_file() {
-                    bail!("resource path {} should contain just \
-                        files, but {} is of another type", r.display(),
-                        path.display());
+                    bail!(
+                        "resource path {} should contain just \
+                        files, but {} is of another type",
+                        r.display(),
+                        path.display()
+                    );
                 }
 
                 out.push(path);
@@ -344,10 +357,14 @@ impl<'a> Context<'a> {
             debug!(log, "check instance-level path: {}", r.display());
 
             match ensure::check(&r)? {
-                Some(fi) if fi.filetype == FileType::Directory =>
-                    return enum_files(&r),
-                Some(fi) => bail!("path {} is a {:?}, not a dir",
-                    r.display(), fi.filetype),
+                Some(fi) if fi.filetype == FileType::Directory => {
+                    return enum_files(&r)
+                }
+                Some(fi) => bail!(
+                    "path {} is a {:?}, not a dir",
+                    r.display(),
+                    fi.filetype
+                ),
                 None => (),
             }
         }
@@ -364,8 +381,9 @@ impl<'a> Context<'a> {
 
         match ensure::check(&r)? {
             Some(fi) if fi.filetype == FileType::Directory => enum_files(&r),
-            Some(fi) => bail!("path {} is a {:?}, not a dir",
-                r.display(), fi.filetype),
+            Some(fi) => {
+                bail!("path {} is a {:?}, not a dir", r.display(), fi.filetype)
+            }
             None => Ok(None),
         }
     }
@@ -377,13 +395,12 @@ impl<'a> Context<'a> {
         /*
          * First, determine whether the automounter is online or disabled.
          */
-        let autofs = match
-            instance_state("svc:/system/filesystem/autofs:default")?
-        {
-            (SMFState::Disabled, None) => false,
-            (SMFState::Online, None) => true,
-            x => bail!("autofs not in stable state: {:?}", x),
-        };
+        let autofs =
+            match instance_state("svc:/system/filesystem/autofs:default")? {
+                (SMFState::Disabled, None) => false,
+                (SMFState::Online, None) => true,
+                x => bail!("autofs not in stable state: {:?}", x),
+            };
 
         if autofs {
             /*
@@ -397,9 +414,8 @@ impl<'a> Context<'a> {
          * Determine whether /home is a ZFS dataset, or automounted.
          */
         let mnttab = self.read_lines("/etc/mnttab")?.expect("mnttab lines");
-        let x: Vec<Vec<_>> = mnttab.iter()
-            .map(|m| { m.split('\t').collect() })
-            .collect();
+        let x: Vec<Vec<_>> =
+            mnttab.iter().map(|m| m.split('\t').collect()).collect();
         let homedir = if let Some(h) = x.iter().find(|x| x[1] == "/home") {
             debug!(log, "/home mnttab entry: {:?}", h);
             if h[2] == "zfs" {
@@ -441,25 +457,29 @@ impl<'a> Context<'a> {
     #[cfg(target_os = "illumos")]
     pub fn data_dataset(&self) -> Result<String> {
         match &self.confomat.os {
-            OS::SmartOS => if self.is_gz() {
-                bail!("do not know where to put data in SmartOS GZ");
-            } else {
-                /*
-                 * Assume a delegated dataset is configured with the usual name
-                 * it would get under Triton, or using the "delegate_dataset"
-                 * property supported by vmadm(1M).
-                 */
-                Ok(format!("zones/{}/data", self.confomat.zonename))
+            OS::SmartOS => {
+                if self.is_gz() {
+                    bail!("do not know where to put data in SmartOS GZ");
+                } else {
+                    /*
+                     * Assume a delegated dataset is configured with the usual name
+                     * it would get under Triton, or using the "delegate_dataset"
+                     * property supported by vmadm(1M).
+                     */
+                    Ok(format!("zones/{}/data", self.confomat.zonename))
+                }
             }
-            OS::OmniOS | OS::OpenIndiana | OS::Helios => if self.is_gz() {
-                Ok("rpool/data".to_string())
-            } else {
-                /*
-                 * XXX This is really a policy decision made for a specific set
-                 * of zones on a specific set of OmniOS hosts, but it will have
-                 * to do for now:
-                 */
-                Ok(format!("rpool/data/{}/data", self.confomat.zonename))
+            OS::OmniOS | OS::OpenIndiana | OS::Helios => {
+                if self.is_gz() {
+                    Ok("rpool/data".to_string())
+                } else {
+                    /*
+                     * XXX This is really a policy decision made for a specific set
+                     * of zones on a specific set of OmniOS hosts, but it will have
+                     * to do for now:
+                     */
+                    Ok(format!("rpool/data/{}/data", self.confomat.zonename))
+                }
             }
             other => bail!("do not know where to put data on {:?}", other),
         }
@@ -478,8 +498,9 @@ impl<'a> Context<'a> {
         /*
          * XXX Assume failure here means we should try to create the dataset.
          */
-        if self.run(&["/usr/sbin/zfs", "list", "-H", "-o", "name",
-            &dsname]).is_ok()
+        if self
+            .run(&["/usr/sbin/zfs", "list", "-H", "-o", "name", &dsname])
+            .is_ok()
         {
             info!(self.log, "dataset {} exists already", dsname);
             return Ok(());
@@ -487,10 +508,7 @@ impl<'a> Context<'a> {
 
         info!(self.log, "create dataset: {}", dsname);
 
-        let mut args: Vec<&str> = vec![
-            "/usr/sbin/zfs",
-            "create",
-        ];
+        let mut args: Vec<&str> = vec!["/usr/sbin/zfs", "create"];
         for opt in opts.iter() {
             args.push("-o");
             args.push(opt);
@@ -509,23 +527,33 @@ impl<'a> Context<'a> {
     }
 
     pub fn ensure_packages_ips(&self, names: &[&str]) -> Result<()> {
-        let install: Vec<&str> = names.iter().filter(|name| {
-            /*
-             * The "install" command appears to fail if no update was required
-             * to the image, so first check to see if the package is already
-             * installed.
-             */
-            match self.run(&["/usr/bin/pkg", "info", "-q", name]) {
-                Ok(_) => {
-                    info!(self.log, "IPS package {} already installed", name);
-                    false
+        let install: Vec<&str> = names
+            .iter()
+            .filter(|name| {
+                /*
+                 * The "install" command appears to fail if no update was required
+                 * to the image, so first check to see if the package is already
+                 * installed.
+                 */
+                match self.run(&["/usr/bin/pkg", "info", "-q", name]) {
+                    Ok(_) => {
+                        info!(
+                            self.log,
+                            "IPS package {} already installed", name
+                        );
+                        false
+                    }
+                    Err(_) => {
+                        info!(
+                            self.log,
+                            "IPS package {} must be installed", name
+                        );
+                        true
+                    }
                 }
-                Err(_) => {
-                    info!(self.log, "IPS package {} must be installed", name);
-                    true
-                }
-            }
-        }).copied().collect();
+            })
+            .copied()
+            .collect();
 
         if install.is_empty() {
             return Ok(());
@@ -552,22 +580,31 @@ impl<'a> Context<'a> {
     }
 
     pub fn ensure_packages(&self, names: &[&str]) -> Result<()> {
-        let install: Vec<&str> = names.iter().filter(|name| {
-            match ensure::run(&self.log,
-                &["/opt/local/sbin/pkg_admin", "-q", "check", name])
-            {
-                Ok(_) => {
-                    info!(self.log, "pkgsrc package {} already installed",
-                        name);
-                    false
+        let install: Vec<&str> = names
+            .iter()
+            .filter(|name| {
+                match ensure::run(
+                    &self.log,
+                    &["/opt/local/sbin/pkg_admin", "-q", "check", name],
+                ) {
+                    Ok(_) => {
+                        info!(
+                            self.log,
+                            "pkgsrc package {} already installed", name
+                        );
+                        false
+                    }
+                    Err(_) => {
+                        info!(
+                            self.log,
+                            "pkgsrc package {} must be installed", name
+                        );
+                        true
+                    }
                 }
-                Err(_) => {
-                    info!(self.log, "pkgsrc package {} must be installed",
-                        name);
-                    true
-                }
-            }
-        }).copied().collect();
+            })
+            .copied()
+            .collect();
 
         if install.is_empty() {
             return Ok(());
@@ -593,47 +630,75 @@ impl<'a> Context<'a> {
         ensure::removed(&self.log, path)
     }
 
-    pub fn ensure_download<P: AsRef<Path>>(&self, url: &str, path: P,
-        hash: &str, hashtype: HashType) -> Result<bool>
-    {
+    pub fn ensure_download<P: AsRef<Path>>(
+        &self,
+        url: &str,
+        path: P,
+        hash: &str,
+        hashtype: HashType,
+    ) -> Result<bool> {
         ensure::download_file(&self.log, url, path, hash, hashtype)
     }
 
-    pub fn ensure_dir<P: AsRef<Path>>(&self, dir: P,
-        owner: &str, group: &str, perms: u32)
-        -> Result<bool>
-    {
+    pub fn ensure_dir<P: AsRef<Path>>(
+        &self,
+        dir: P,
+        owner: &str,
+        group: &str,
+        perms: u32,
+    ) -> Result<bool> {
         ensure::directory(&self.log, dir, owner, group, perms)
     }
 
-    pub fn ensure_symlink<L: AsRef<Path>, T: AsRef<Path>>(&self,
-        link: L, target: T, owner: &str, group: &str)
-        -> Result<bool>
-    {
+    pub fn ensure_symlink<L: AsRef<Path>, T: AsRef<Path>>(
+        &self,
+        link: L,
+        target: T,
+        owner: &str,
+        group: &str,
+    ) -> Result<bool> {
         ensure::symlink(&self.log, link, target, owner, group)
     }
 
-    pub fn ensure_file<S: AsRef<Path>, D: AsRef<Path>>(&self,
-        src: S, dst: D, owner: &str, group: &str, perms: u32,
-        create: Create)
-        -> Result<bool>
-    {
+    pub fn ensure_file<S: AsRef<Path>, D: AsRef<Path>>(
+        &self,
+        src: S,
+        dst: D,
+        owner: &str,
+        group: &str,
+        perms: u32,
+        create: Create,
+    ) -> Result<bool> {
         ensure::file(&self.log, src, dst, owner, group, perms, create)
     }
 
-    pub fn ensure_file_str<S: AsRef<str>, D: AsRef<Path>>(&self,
-        contents: S, dst: D, owner: &str, group: &str, perms: u32,
-        create: Create)
-        -> Result<bool>
-    {
-        ensure::file_str(&self.log, contents.as_ref(), dst, owner, group,
-            perms, create)
+    pub fn ensure_file_str<S: AsRef<str>, D: AsRef<Path>>(
+        &self,
+        contents: S,
+        dst: D,
+        owner: &str,
+        group: &str,
+        perms: u32,
+        create: Create,
+    ) -> Result<bool> {
+        ensure::file_str(
+            &self.log,
+            contents.as_ref(),
+            dst,
+            owner,
+            group,
+            perms,
+            create,
+        )
     }
 
-    pub fn ensure_perms<P: AsRef<Path>>(&self, path: P,
-        owner: &str, group: &str, perms: u32)
-        -> Result<bool>
-    {
+    pub fn ensure_perms<P: AsRef<Path>>(
+        &self,
+        path: P,
+        owner: &str,
+        group: &str,
+        perms: u32,
+    ) -> Result<bool> {
         ensure::perms(&self.log, path, owner, group, perms)
     }
 
@@ -649,8 +714,12 @@ impl<'a> Context<'a> {
                     return Ok(());
                 }
                 (SMFState::Maintenance, None) => {
-                    info!(self.log, "smf instance {}: in maintenance, \
-                        disabling and clearing...", fmri);
+                    info!(
+                        self.log,
+                        "smf instance {}: in maintenance, \
+                        disabling and clearing...",
+                        fmri
+                    );
                     self.run(&["/usr/sbin/svcadm", "disable", fmri])?;
                     self.run(&["/usr/sbin/svcadm", "clear", fmri])?;
                 }
@@ -659,8 +728,10 @@ impl<'a> Context<'a> {
                     self.run(&["/usr/sbin/svcadm", "disable", fmri])?;
                 }
                 x => {
-                    warn!(self.log, "smf instance {}: unexpected state {:?}",
-                        fmri, x);
+                    warn!(
+                        self.log,
+                        "smf instance {}: unexpected state {:?}", fmri, x
+                    );
                 }
             }
 
@@ -668,9 +739,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn ensure_online(&self, fmri: &str, need_restart: bool)
-        -> Result<()>
-    {
+    pub fn ensure_online(&self, fmri: &str, need_restart: bool) -> Result<()> {
         if need_restart {
             /*
              * Restarts are posted, and merely have no effect in the event that
@@ -686,18 +755,28 @@ impl<'a> Context<'a> {
                     return Ok(());
                 }
                 (SMFState::Maintenance, None) => {
-                    info!(self.log, "smf instance {}: in maintenance, \
-                        clearing...", fmri);
+                    info!(
+                        self.log,
+                        "smf instance {}: in maintenance, \
+                        clearing...",
+                        fmri
+                    );
                     self.run(&["/usr/sbin/svcadm", "clear", fmri])?;
                 }
                 (SMFState::Disabled, None) => {
-                    info!(self.log, "smf instance {}: disabled, \
-                        enabling...", fmri);
+                    info!(
+                        self.log,
+                        "smf instance {}: disabled, \
+                        enabling...",
+                        fmri
+                    );
                     self.run(&["/usr/sbin/svcadm", "enable", fmri])?;
                 }
                 x => {
-                    warn!(self.log, "smf instance {}: unexpected state {:?}",
-                        fmri, x);
+                    warn!(
+                        self.log,
+                        "smf instance {}: unexpected state {:?}", fmri, x
+                    );
                 }
             }
 
@@ -717,7 +796,7 @@ impl<'a> Context<'a> {
                     return Ok(false);
                 }
                 _ => bail!("checking for \"{}\": {}", p.display(), e),
-            }
+            },
         };
         Ok(f.is_file())
     }
@@ -757,11 +836,8 @@ impl<'a> Context<'a> {
                 bail!("unexpected line: {:?}", t);
             }
 
-            let mountpoint = if t[3] == "-" {
-                None
-            } else {
-                Some(t[3].to_string())
-            };
+            let mountpoint =
+                if t[3] == "-" { None } else { Some(t[3].to_string()) };
 
             bes.push(BootEnvironment {
                 name: t[0].to_string(),
@@ -781,7 +857,8 @@ impl<'a> Context<'a> {
         let out = std::process::Command::new("/usr/bin/pkg")
             .env_clear()
             .arg("publisher")
-            .arg("-F").arg("tsv")
+            .arg("-F")
+            .arg("tsv")
             .output()?;
         if !out.status.success() {
             bail!("pkg publisher failed: {}", out.info());
@@ -796,8 +873,17 @@ impl<'a> Context<'a> {
          * First, check that the header row matches our expectations:
          */
         let hdr: Vec<&str> = lines.get(0).unwrap().split('\t').collect();
-        if hdr != ["PUBLISHER", "STICKY", "SYSPUB", "ENABLED", "TYPE",
-            "STATUS", "URI", "PROXY"]
+        if hdr
+            != [
+                "PUBLISHER",
+                "STICKY",
+                "SYSPUB",
+                "ENABLED",
+                "TYPE",
+                "STATUS",
+                "URI",
+                "PROXY",
+            ]
         {
             bail!("unexpected header: {:?}", hdr);
         }
@@ -826,16 +912,18 @@ impl<'a> Context<'a> {
         Ok(pubs)
     }
 
-    pub fn read_lines<P: AsRef<Path>>(&self, path: P)
-        -> Result<Option<Vec<String>>>
-    {
+    pub fn read_lines<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<Option<Vec<String>>> {
         read_lines(path)
     }
 
     pub fn svcprop(&self, fmri: &str, propval: &str) -> Result<String> {
         let out = std::process::Command::new("/usr/bin/svcprop")
             .env_clear()
-            .arg("-p").arg(propval)
+            .arg("-p")
+            .arg(propval)
             .arg(fmri)
             .output()?;
         if !out.status.success() {
@@ -849,9 +937,12 @@ impl<'a> Context<'a> {
         Ok(lines[0].trim().to_string())
     }
 
-    pub fn ensure_cron(&self, user: &str, name: &str, script: &str)
-        -> Result<()>
-    {
+    pub fn ensure_cron(
+        &self,
+        user: &str,
+        name: &str,
+        script: &str,
+    ) -> Result<()> {
         info!(self.log, "cron script \"{}\" for user \"{}\"", script, user);
 
         /*
@@ -859,7 +950,8 @@ impl<'a> Context<'a> {
          */
         let out = std::process::Command::new("/usr/bin/crontab")
             .env_clear()
-            .arg("-l").arg(user)
+            .arg("-l")
+            .arg(user)
             .output()?;
         if !out.status.success() {
             bail!("crontab -l {} failed: {}", name, out.info());
@@ -874,13 +966,16 @@ impl<'a> Context<'a> {
          * First, we want to look for and transform any legacy "Chef Name"
          * entries.
          */
-        new_lines = new_lines.iter_mut().map(|l| {
-            if l.starts_with("# Chef Name: ") {
-                l.replace("# Chef Name: ", "# confomat: ")
-            } else {
-                l.to_string()
-            }
-        }).collect();
+        new_lines = new_lines
+            .iter_mut()
+            .map(|l| {
+                if l.starts_with("# Chef Name: ") {
+                    l.replace("# Chef Name: ", "# confomat: ")
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect();
 
         /*
          * Next, look to see if there is a job with the specified name:
@@ -924,8 +1019,8 @@ impl<'a> Context<'a> {
                      * The marker exists, but the script does not.  Comment out
                      * whatever is on the line directly after the marker.
                      */
-                    let nl = format!("# confomat preserved: {}",
-                        new_lines[ni + 1]);
+                    let nl =
+                        format!("# confomat preserved: {}", new_lines[ni + 1]);
                     new_lines[ni + 1] = nl;
                 }
 
@@ -966,8 +1061,10 @@ impl<'a> Context<'a> {
          */
         let mut cmd = std::process::Command::new("/usr/bin/su")
             .env_clear()
-            .arg("-").arg(user)
-            .arg("-c").arg("/usr/bin/crontab")
+            .arg("-")
+            .arg(user)
+            .arg("-c")
+            .arg("/usr/bin/crontab")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -1020,16 +1117,14 @@ fn read_file<P: AsRef<Path>>(p: P) -> Result<Option<String>> {
 }
 
 fn read_lines<P: AsRef<Path>>(path: P) -> Result<Option<Vec<String>>> {
-    Ok(read_file(path.as_ref())?.map(|data| {
-        data.lines().map(|a| a.trim().to_string()).collect()
-    }))
+    Ok(read_file(path.as_ref())?
+        .map(|data| data.lines().map(|a| a.trim().to_string()).collect()))
 }
 
 fn which_os(log: &Logger) -> Result<OS> {
     if let Some(data) = read_lines("/etc/os-release")? {
-        let kv: Vec<Vec<&str>> = data.iter()
-            .map(|s| s.split('=').collect())
-            .collect();
+        let kv: Vec<Vec<&str>> =
+            data.iter().map(|s| s.split('=').collect()).collect();
 
         if let Some(id) = kv.iter().find(|kve| kve[0] == "ID") {
             if id[1] == "omnios" {
@@ -1042,7 +1137,6 @@ fn which_os(log: &Logger) -> Result<OS> {
         }
 
         error!(log, "unknown OS from /etc/os-release: {:?}", data);
-
     } else if let Some(data) = read_lines("/etc/release")? {
         if !data.is_empty() {
             if data[0].contains("SmartOS") {
@@ -1083,7 +1177,6 @@ pub struct BootEnvironment {
     pub created: u64,
 }
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct PkgPublisher {
     pub name: String,
@@ -1123,7 +1216,8 @@ impl SMFState {
 fn instance_state(fmri: &str) -> Result<(SMFState, Option<SMFState>)> {
     let out = std::process::Command::new("/usr/bin/svcs")
         .env_clear()
-        .arg("-Ho").arg("sta,nsta")
+        .arg("-Ho")
+        .arg("sta,nsta")
         .arg(fmri)
         .output()?;
     if !out.status.success() {
@@ -1135,8 +1229,7 @@ fn instance_state(fmri: &str) -> Result<(SMFState, Option<SMFState>)> {
         bail!("unexpected output for {}: {:?}", fmri, lines);
     }
     let terms: Vec<&str> = lines[0].split_whitespace().collect();
-    Ok((SMFState::from_str(&terms[0]).unwrap(),
-        SMFState::from_str(&terms[1])))
+    Ok((SMFState::from_str(&terms[0]).unwrap(), SMFState::from_str(&terms[1])))
 }
 
 /**

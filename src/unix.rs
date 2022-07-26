@@ -2,11 +2,11 @@
  * Copyright 2020 Oxide Computer Company
  */
 
+use super::os;
+use anyhow::{bail, Result};
+use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::process::exit;
-use std::ffi::{CString, CStr};
-use anyhow::{Result, bail};
-use super::os;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Passwd {
@@ -80,7 +80,7 @@ impl Group {
                 members.push(cs(unsafe { *mems })?.unwrap());
 
                 mems = unsafe { mems.offset(1) };
-             }
+            }
             Some(members)
         } else {
             None
@@ -165,5 +165,8 @@ pub fn nodename() -> String {
             exit(100);
         }
         std::ffi::CStr::from_ptr(un.nodename.as_mut_ptr())
-    }.to_str().unwrap().to_string()
+    }
+    .to_str()
+    .unwrap()
+    .to_string()
 }
