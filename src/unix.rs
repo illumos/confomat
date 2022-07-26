@@ -8,7 +8,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::process::exit;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Passwd {
     pub name: Option<String>,
     pub passwd: Option<String>,
@@ -50,7 +50,7 @@ impl Passwd {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Group {
     pub name: Option<String>,
     pub passwd: Option<String>,

@@ -2,6 +2,8 @@
  * Copyright 2020 Oxide Computer Company
  */
 
+#![allow(clippy::format_push_string)]
+
 use jmclib::dirs::rootdir;
 
 use std::collections::HashMap;
@@ -71,7 +73,7 @@ pub struct RoleProvider {
     pub instance_posture: InstancePosture,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum OS {
     OmniOS,
     OpenIndiana,
@@ -80,7 +82,7 @@ pub enum OS {
     Alpine,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum HomeDir {
     ZFS(String), /* Create home directories as children of this dataset */
     NFS,         /* Home directories are mounted via autofs */
@@ -499,7 +501,7 @@ impl<'a> Context<'a> {
          * XXX Assume failure here means we should try to create the dataset.
          */
         if self
-            .run(&["/usr/sbin/zfs", "list", "-H", "-o", "name", &dsname])
+            .run(&["/usr/sbin/zfs", "list", "-H", "-o", "name", dsname])
             .is_ok()
         {
             info!(self.log, "dataset {} exists already", dsname);
@@ -872,7 +874,7 @@ impl<'a> Context<'a> {
         /*
          * First, check that the header row matches our expectations:
          */
-        let hdr: Vec<&str> = lines.get(0).unwrap().split('\t').collect();
+        let hdr: Vec<&str> = lines.first().unwrap().split('\t').collect();
         if hdr
             != [
                 "PUBLISHER",
@@ -1166,7 +1168,7 @@ fn run_pkgsrc(log: &Logger, cmd: &[&str]) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BootEnvironment {
     pub name: String,
     pub uuid: String,
@@ -1177,7 +1179,7 @@ pub struct BootEnvironment {
     pub created: u64,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PkgPublisher {
     pub name: String,
     pub sticky: bool,
@@ -1189,7 +1191,7 @@ pub struct PkgPublisher {
     pub proxy: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 enum SMFState {
     Disabled,
     Degraded,
@@ -1229,7 +1231,7 @@ fn instance_state(fmri: &str) -> Result<(SMFState, Option<SMFState>)> {
         bail!("unexpected output for {}: {:?}", fmri, lines);
     }
     let terms: Vec<&str> = lines[0].split_whitespace().collect();
-    Ok((SMFState::from_str(&terms[0]).unwrap(), SMFState::from_str(&terms[1])))
+    Ok((SMFState::from_str(terms[0]).unwrap(), SMFState::from_str(terms[1])))
 }
 
 /**

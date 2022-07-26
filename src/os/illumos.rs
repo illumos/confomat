@@ -22,7 +22,7 @@ pub fn clear_errno() {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct UserAttr {
     pub name: String,
     pub attr: HashMap<String, String>,
@@ -118,7 +118,7 @@ pub fn zonename() -> String {
         let mut buf: [u8; 64] = std::mem::zeroed(); /* ZONENAME_MAX */
 
         let sz = getzonenamebyid(getzoneid(), buf.as_mut_ptr(), 64);
-        if sz > 64 || sz < 0 {
+        if !(0..=64).contains(&sz) {
             eprintln!("getzonenamebyid failure");
             exit(100);
         }

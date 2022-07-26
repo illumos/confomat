@@ -15,27 +15,27 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 #[allow(dead_code)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum HashType {
     SHA1,
     MD5,
     None,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FileType {
     Directory,
     File,
     Link,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Id {
     Name(String),
     Id(u32),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FileInfo {
     pub filetype: FileType,
     pub perms: u32,
@@ -226,7 +226,7 @@ pub fn directory<P: AsRef<Path>>(
     Ok(did_work)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Create {
     IfMissing,
     Always,
