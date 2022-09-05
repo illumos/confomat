@@ -614,11 +614,11 @@ pub fn hash_file<P: AsRef<Path>>(p: P, hashtype: &HashType) -> Result<String> {
             break;
         }
 
-        digest.input(&buf[0..sz]);
+        digest.update(&buf[0..sz]);
     }
 
     let mut out = String::new();
-    let hash = digest.result();
+    let hash = digest.finalize();
     for byt in hash.iter() {
         out.push_str(&format!("{:02x}", byt));
     }
