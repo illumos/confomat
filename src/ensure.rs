@@ -18,6 +18,7 @@ use std::time::Duration;
 #[derive(Debug, PartialEq, Eq)]
 pub enum HashType {
     SHA1,
+    SHA256,
     MD5,
     None,
 }
@@ -605,6 +606,7 @@ pub fn hash_file<P: AsRef<Path>>(p: P, hashtype: &HashType) -> Result<String> {
     let mut digest: Box<dyn digest::DynDigest> = match hashtype {
         HashType::MD5 => Box::new(md5::Md5::new()),
         HashType::SHA1 => Box::new(sha1::Sha1::new()),
+        HashType::SHA256 => Box::new(sha2::Sha256::new()),
         HashType::None => panic!("None unexpected"),
     };
 
