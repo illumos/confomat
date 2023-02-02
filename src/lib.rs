@@ -447,6 +447,20 @@ impl<'a> Context<'a> {
     }
 
     #[cfg(target_os = "illumos")]
+    pub fn zonename(&self) -> Option<&str> {
+        if !self.is_gz() {
+            Some(&self.confomat.zonename)
+        } else {
+            None
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn zonename(&self) -> Option<&str> {
+        None
+    }
+
+    #[cfg(target_os = "illumos")]
     pub fn is_gz(&self) -> bool {
         self.confomat.zoneid == 0
     }
