@@ -464,9 +464,9 @@ impl<'a> Context<'a> {
                     bail!("do not know where to put data in SmartOS GZ");
                 } else {
                     /*
-                     * Assume a delegated dataset is configured with the usual name
-                     * it would get under Triton, or using the "delegate_dataset"
-                     * property supported by vmadm(1M).
+                     * Assume a delegated dataset is configured with the usual
+                     * name it would get under Triton, or using the
+                     * "delegate_dataset" property supported by vmadm(1M).
                      */
                     Ok(format!("zones/{}/data", self.confomat.zonename))
                 }
@@ -476,9 +476,9 @@ impl<'a> Context<'a> {
                     Ok("rpool/data".to_string())
                 } else {
                     /*
-                     * XXX This is really a policy decision made for a specific set
-                     * of zones on a specific set of OmniOS hosts, but it will have
-                     * to do for now:
+                     * XXX This is really a policy decision made for a specific
+                     * set of zones on a specific set of OmniOS hosts, but it
+                     * will have to do for now:
                      */
                     Ok(format!("rpool/data/{}/data", self.confomat.zonename))
                 }
@@ -533,9 +533,9 @@ impl<'a> Context<'a> {
             .iter()
             .filter(|name| {
                 /*
-                 * The "install" command appears to fail if no update was required
-                 * to the image, so first check to see if the package is already
-                 * installed.
+                 * The "install" command appears to fail if no update was
+                 * required to the image, so first check to see if the package
+                 * is already installed.
                  */
                 match self.run(&["/usr/bin/pkg", "info", "-q", name]) {
                     Ok(_) => {
