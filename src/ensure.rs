@@ -233,6 +233,12 @@ pub enum Create {
     Always,
 }
 
+impl Default for Create {
+    fn default() -> Self {
+        Create::Always
+    }
+}
+
 fn open<P: AsRef<Path>>(p: P) -> Result<File> {
     let p = p.as_ref();
 
@@ -797,6 +803,115 @@ pub fn run<S: AsRef<str>>(log: &Logger, args: &[S]) -> Result<()> {
                 Err(anyhow!("exec {:?}: failed {:?}", &args, &es))
             } else {
                 Ok(())
+            }
+        }
+    }
+}
+
+pub mod builder {
+    use anyhow::Result;
+    use std::path::{Path, PathBuf};
+
+    use slog::Logger;
+
+    pub struct EnsureFileBuilder0 {
+        log: Logger,
+        dst: PathBuf,
+    }
+
+    pub fn file<P: AsRef<Path>>(log: &Logger, path: P) -> EnsureFileBuilder0 {
+        EnsureFileBuilder0 {
+            log: log.clone(),
+            dst: path.as_ref().to_path_buf(),
+        }
+    }
+
+    impl EnsureFileBuilder0 {
+        pub fn from_string<S: Into<String>>(
+            self,
+            contents: S,
+        ) -> EnsureFileBuilder {
+            EnsureFileBuilder {
+                log: Some(self.log),
+                dst: self.dst,
+                src: EnsureFileSource::String(contents.into()),
+                ..Default::default()
+            }
+        }
+
+        pub fn from_file<P: AsRef<Path>>(self, path: P) -> EnsureFileBuilder {
+            EnsureFileBuilder {
+                log: Some(self.log),
+                dst: self.dst,
+                src: EnsureFileSource::Path(path.as_ref().to_path_buf()),
+                ..Default::default()
+            }
+        }
+    }
+
+    enum EnsureFileSource {
+        String(String),
+        Path(PathBuf),
+    }
+
+    impl Default for EnsureFileSource {
+        fn default() -> Self {
+            EnsureFileSource::String("".to_string())
+        }
+    }
+
+    #[derive(Default)]
+    pub struct EnsureFileBuilder {
+        log: Option<Logger>,
+        dst: PathBuf,
+        src: EnsureFileSource,
+        owner: Option<String>,
+        group: Option<String>,
+        mode: Option<u32>,
+        create: super::Create,
+    }
+
+    impl EnsureFileBuilder {
+        pub fn owner<S: AsRef<str>>(&mut self, owner: S) -> &mut Self {
+            self.owner = Some(owner.as_ref().to_string());
+            self
+        }
+
+        pub fn group<S: AsRef<str>>(&mut self, group: S) -> &mut Self {
+            self.group = Some(group.as_ref().to_string());
+            self
+        }
+
+        pub fn mode(&mut self, mode: u32) -> &mut Self {
+            self.mode = Some(mode);
+            self
+        }
+
+        pub fn skip_if_file_exists(&mut self) -> &mut Self {
+            self.create = super::Create::IfMissing;
+            self
+        }
+
+        pub fn commit(self) -> Result<bool> {
+            match self.src {
+                EnsureFileSource::String(contents) => super::file_str(
+                    self.log.as_ref().unwrap(),
+                    &contents,
+                    &self.dst,
+                    self.owner.as_deref().unwrap_or("root"),
+                    self.group.as_deref().unwrap_or("root"),
+                    self.mode.unwrap_or(0o644),
+                    self.create,
+                ),
+                EnsureFileSource::Path(src) => super::file(
+                    self.log.as_ref().unwrap(),
+                    &src,
+                    &self.dst,
+                    self.owner.as_deref().unwrap_or("root"),
+                    self.group.as_deref().unwrap_or("root"),
+                    self.mode.unwrap_or(0o644),
+                    self.create,
+                ),
             }
         }
     }
