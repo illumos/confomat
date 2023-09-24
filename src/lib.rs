@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Oxide Computer Company
+ * Copyright 2023 Oxide Computer Company
  */
 
 #![allow(clippy::format_push_string)]
@@ -489,6 +489,34 @@ impl<'a> Context<'a> {
                 if self.is_gz() {
                     Ok("rpool/data".to_string())
                 } else {
+                    /*
+                     * Try to guess at the dataset name by looking at what
+                     * dataset is mounted at /data.
+                     */
+                    let res = std::process::Command::new("/sbin/zfs")
+                        .env_clear()
+                        .arg("list")
+                        .arg("-Ho")
+                        .arg("name,zoned,mountpoint")
+                        .arg("/data")
+                        .output();
+                    if let Ok(res) = res {
+                        if res.status.success() {
+                            if let Ok(out) = String::from_utf8(res.stdout) {
+                                let t = out
+                                    .trim_end_matches('\n')
+                                    .split('\t')
+                                    .collect::<Vec<_>>();
+
+                                if t.len() == 3 {
+                                    if t[1] == "on" && t[2] == "/data" {
+                                        return Ok(t[0].to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     /*
                      * XXX This is really a policy decision made for a specific
                      * set of zones on a specific set of OmniOS hosts, but it
